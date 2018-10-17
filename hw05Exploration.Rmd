@@ -460,12 +460,15 @@ First, the .jpeg file. JPEG's are examples of rasterized images.
 Second, the .pdf file. PDF's are examples of rasterized images.
 
 ![](gg6.pdf)
+```{r}
+# Note that a Desktop Markdown file will attempt to insert a PDF in an awkward way when publishing from R Markdown, but when uploaded to GitHub, it will no longer render, so there will be a gap here where "![](gg6.pdf)" was written
+```
 
 Third, the .svg file. SVG's are examples of vectorized images.
 
 ![](gg7.svg)
 
-PDF's aren't usually created in order to be inserted into other documents, so we can see that R Markdown presented it less nicely.
+PDF's aren't usually created in order to be inserted into other documents, so R Markdown presents it less nicely in a markdown document, and GitHub is no longer able to parse it after uploading.
 
 Rasterization vs. vectorization of images generally becomes most relevant when resizing or changing images, so we see in this case little difference between the saved and loaded rasterized and vectorized images that weren't resized.
 
