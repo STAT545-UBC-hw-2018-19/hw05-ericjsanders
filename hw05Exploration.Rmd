@@ -24,7 +24,7 @@ options(scipen = 999)
 set.seed(16)
 ```
 
-In this document we present some data exploration completed using the `singer` dataset accessed from GitHub. We will use the packages `tidyverse`, `devtools`, `RColorBrewer`, `plotly`, and `ggplot2` from R, as well as `singer` from GitHub.
+In this document we present some data exploration completed using the `singer` dataset accessed from GitHub. We will use the packages `tidyverse`, `devtools`, `RColorBrewer`, `plotly`, `svglite`, and `ggplot2` from R, as well as `singer` from GitHub.
 
 ```{r}
 library(tidyverse)
@@ -34,6 +34,8 @@ devtools::install_github("JoeyBernhardt/singer")
 library(singer)
 library(RColorBrewer)
 library(plotly)
+library(svglite)
+library(stringr)
 ```
 
 The sections of this document are as follows:
@@ -47,6 +49,7 @@ The sections of this document are as follows:
 * Creating a New Visualization
 * Converting Visualization to Plotly
 * Writing Figures to File
+* Bonus, Separating Locations in the City Column
 
 # Loading in Data and Checking its Structure
 
@@ -158,6 +161,7 @@ We see that rearranging the data does change its order.
 Now let us create a simple plot of artist popularity for the 50 selected songs, and we colour by year of song's release.
 
 ```{r}
+# Plot before rearrangement
 ggplot(singer_locations_sample,aes(y=artist_name,x=artist_hotttnesss,colour=year))+
   geom_point()+
   scale_colour_distiller(palette = 'YlOrRd')+
@@ -168,6 +172,7 @@ ggplot(singer_locations_sample,aes(y=artist_name,x=artist_hotttnesss,colour=year
 Now, let us verify that the plot will be the exact same if we rearrange the data before making the plot. Let us arrange `artist_id` in alphabetical order, and remake the plot.
 
 ```{r}
+# Plot after rearrangement
 singer_locations_sample %>%
   arrange(artist_name) %>%
   ggplot(aes(y=artist_name,x=artist_hotttnesss,colour=year))+
@@ -184,6 +189,7 @@ And here we see that rearranging the data before creating the figure made no dif
 We will reorder the levels of `artist_name` by the minimum hotness level observed by all songs by the artist.
 
 ```{r}
+# Rearrange factor levels
 singer_locations_filtered$artist_name = singer_locations_filtered$artist_name %>%
   fct_reorder(singer_locations_filtered$artist_hotttnesss,min)
 ```
@@ -191,6 +197,7 @@ singer_locations_filtered$artist_name = singer_locations_filtered$artist_name %>
 And now if we examine the first 8 levels in the factor, alongside the first 8 levels in the factor in the original data set,
 
 ```{r}
+# Compare first few factor levels
 data.frame(new=levels(singer_locations_filtered$artist_id)[c(1,2,3,4,5,6,7,8)],original=levels(singer_locations$artist_id)[c(1,2,3,4,5,6,7,8)])
 ```
 
@@ -201,6 +208,7 @@ We see that in the original data set, the levels were alphabetically ordered, wh
 Let us make the same figure as previously, using the same subset of the data, but this time taking the subset from the data with the reordered factor.
 
 ```{r}
+# Start arranging data to create same plot as before
 singer_locations_sample2 = singer_locations_filtered %>%
   filter(artist_name %in% sample.artists) %>%
   select(artist_hotttnesss,artist_name,year) %>%
@@ -212,6 +220,7 @@ str(singer_locations_sample2)
 We see the same data structure as before, as expected. Now, let us create the same plot as we did before.
 
 ```{r}
+# Examine same plot as before but with reordered factor levels
 ggplot(singer_locations_sample2,aes(y=artist_name,x=artist_hotttnesss,colour=year))+
   geom_point()+
   scale_colour_distiller(palette = 'YlOrRd')+
@@ -226,6 +235,7 @@ And we can see that by reordering the factor levels, we have impacted how a plot
 Right now we have two data sets that are samples from the filtered `singer_locations` object `singer_locations_filtered`. The two sample data sets are called `singer_locations_sample` and `singer_locations_sample2`. Reviewing the structure of these, we have
 
 ```{r}
+# See that only factor level order differs
 str(singer_locations_sample)
 str(singer_locations_sample2)
 ```
@@ -235,12 +245,14 @@ What has happened is we have two identical subsets of the filtered data set, but
 We can see that the data sets are technically not 'identical' because of these different factor orders, even though they technically hold the exact same information in the same dimension and with the same column contents. Indeed, this can be checked in R
 
 ```{r}
+# Check that these data sets are considered different
 identical(singer_locations_sample,singer_locations_sample2)
 ```
 
 Now, this will be useful when exploring writing and reading files, because we can see whether these objects become identical after writing and reading them using different methods. For example, let us write both of these data sets into CSV files, then read them back into R, and then check if R now sees them as identical.
 
 ```{r}
+# Write to csv and read back, check if they are still different
 write.csv(singer_locations_sample,'sample1.csv',row.names=FALSE)
 write.csv(singer_locations_sample2,'sample2.csv',row.names=FALSE)
 
@@ -261,6 +273,7 @@ We see from comparing the first few levels that they are purely alphabetical.
 Let us try this with the `saveRDS` and `readRDS` functions instead.
 
 ```{r}
+# Write to RDS and read back, check if they are still different
 saveRDS(singer_locations_sample,'RDS1')
 saveRDS(singer_locations_sample2,'RDS2')
 
@@ -281,6 +294,7 @@ Where we see that the reordering of the factor levels was mantained in the secon
 Lastly, let us do this comparison with `dput` and `dget`
 
 ```{r}
+# Write and read back using dput and dget, check if they are still different
 dput(singer_locations_sample,'dput1')
 dput(singer_locations_sample2,'dput2')
 
@@ -307,6 +321,7 @@ Because there were so many data points, and so many of the variables were factor
 For my initial plots, I decide to try two things. I plot all the points to see if there needs to be changes before interpretation, which is likely.
 
 ```{r}
+# Create simplest plot to start with
 singer_locations_filtered %>%
   ggplot(aes(x=year,y=artist_hotttnesss))+
   geom_point()
@@ -329,6 +344,7 @@ Some steps that I took to consolidate all this information into a more useful pl
 * Make contour lines black to contrast the light palette of the points.
 
 ```{r}
+# Recreate last plot with all described changes
 plot=singer_locations_filtered %>%
   ggplot(aes(x=year,y=artist_hotttnesss))+
   geom_jitter(aes(colour=title,group=artist_name),size=0.75,width=0.4,height=0,alpha=0.5)+
@@ -353,16 +369,177 @@ It was interesting to learn a lot of the things that I ended up applying to this
 ```{r}
 attach(singer_locations_filtered)
 
-plot_ly(x = year, y = artist_hotttnesss, type = "histogram2dcontour")
+# Declare some information to be used in axes formatting
+f <- list(
+  family = "Courier New, monospace",
+  size = 18,
+  color = "black"
+)
+x <- list(
+  title = "Year (With Jitter)",
+  titlefont = f,
+  autotick = FALSE,
+  dtick=2
+)
+y <- list(
+  title = "Artist Hotness",
+  titlefont = f
+)
 
-plot_ly(x = ~year+runif(length(year),-0.5,0.5),
-        y = ~artist_hotttnesss,
-        type = "scatter",
-        mode = "markers",
-        color = ~artist_id,
-        colors = colorRampPalette(brewer.pal(8, 'Set1'))(length(unique(artist_id))),
-        text = ~paste('Song: ', title,'. Artist: ',artist_name)) %>%
-  layout(showlegend = FALSE)
+# Create plotly plot by adding scatter plot on top of contour
+p = plot_ly(x = year, 
+        y = artist_hotttnesss,
+        text = ~paste('Song: ', title,'. Artist: ',artist_name)) %>% 
+  add_histogram2dcontour(showscale=FALSE,
+                         ncontours=10,
+                         colorscale='black',
+                         contours = list(coloring='none')) %>%
+  add_markers(x = year+runif(length(year),-0.5,0.5),
+              y = artist_hotttnesss,
+              marker=list(size=2.5),
+              opacity=0.5,
+              color=I("orangered3")) %>%
+  layout(xaxis = x, 
+         yaxis = y,
+         showlegend=FALSE)
+
+htmlwidgets::saveWidget(p, file = "plotly_plot.html")
 ```
 
+This plot can be found [here](https://stat545-ubc-students.github.io/hw05-ericjsanders/plotly_plot.html)!
+
+The plot is very interesting because it captures the same infomation as previously, as well as additional information, and it has additional capabilities for interaction! There are no longer different colours for different artists, but when a song is moused over, the song title and artist name are given, which is more useful than previous. Furthermore, the zooming capabilities of a plotly figure are always incredibly useful. As an example of something we can tell form this plot but not the previous one. As an example of something that you can see in the second plot but not the first plot, if you mouse over the highest score song in 2009, you can see it is "Boom Boom Pow" by the "Black Eyed Peas", an excellent song.
+
 # Writing Figures to File
+
+We will be working with the final ggplot graph shown previously, which was saved into the object `plot`.
+
+I will save the plot object three different ways, and then embed the three plots in the same order to observe how the image files differ.
+
+```{r}
+ggsave('gg1.png',plot=plot,device=png())
+ggsave('gg2.png',plot=plot,device=png(),dpi=72)
+ggsave('gg3.png',plot=plot,device=png(),width=5,height=5,units='cm')
+ggsave('gg4.png',plot=plot,device=png(),scale=0.5)
+```
+
+Now we can call to them in order.
+
+First, the plot with no special arguments.
+
+![](gg1.png)
+
+Second, the plot with a `dpi` argument.
+
+![](gg2.png)
+
+Third, the plot with changed width and height parameters.
+
+![](gg3.png)
+
+Fourth, the plot with a `scale` argument.
+
+![](gg4.png)
+
+We see that in all of the above plots, the dpi argument preserved the proportional size of text in axis labels and the size of points in the plot. In comparison, the width and height arguments or the scale argument do not preserve the proportional size of text and points.
+
+Now that we have played with the arguments of the `ggsave`, we can play with the different graphic devices.
+
+```{r}
+ggsave('gg5.jpeg',plot=plot,device='jpeg')
+ggsave('gg6.pdf',plot=plot,device='pdf')
+ggsave('gg7.svg',plot=plot,device='svg')
+```
+
+Now let us attempt to look at these figures.
+
+First, the .jpeg file. JPEG's are examples of rasterized images.
+
+![](gg5.jpeg)
+
+Second, the .pdf file. PDF's are examples of rasterized images.
+
+![](gg6.pdf)
+
+Third, the .svg file. SVG's are examples of vectorized images.
+
+![](gg7.svg)
+
+PDF's aren't usually created in order to be inserted into other documents, so we can see that R Markdown presented it less nicely.
+
+Rasterization vs. vectorization of images generally becomes most relevant when resizing or changing images, so we see in this case little difference between the saved and loaded rasterized and vectorized images that weren't resized.
+
+The biggest case I know of in which we might want to use `ggsave()` and then present an image manually in a markdown document is when presenting results of very complicated R code that takes a great deal of time to run. For example, in simulation studies or complex Bayesian modelling, code often has to run for a great deal of time and look at many different situations while generating and collecting data. In these cases, one would hopefully run their code with an internal request to save plots of interest, and later when a presentation of results is put together, the images can be called to and presented, and thus the rendering of the presentation file does not always require an incredibly long time for code to run.
+
+# Bonus, Separating Locations in the City Column
+
+First, I will generate a list of the factor levels of the `city` column that contain two commas, so I can select some levels that have clear entries separating city, region, and country. This can be done using the `stringr` package, which has a useful function called `str_count` that counts the number of occurences of a certain pattern in each element of a vector of strings.
+
+```{r}
+# Look at unique cities
+unique.locs = unique(singer_locations_filtered$city)
+# Pick out unique cities with 2 commas in entry
+unique.locs[which(str_count(unique.locs,',')==2)]
+```
+
+I manually look at this list of levels, and manually select some that are properly formatted for the desired manipulation.
+
+```{r}
+chosen.locs = unique.locs[which(str_count(unique.locs,',')==2)][c(1,2,3,4,7,8,9,18,20,22,44,48)]
+
+# Filter data to only contain these city entries
+
+simple.city.sample = singer_locations_filtered %>%
+  filter(city %in% chosen.locs) %>%
+  droplevels() %>%
+  mutate(city = as.character(city))
+
+str(simple.city.sample)
+```
+
+So we have this small subset of the data, and we wish to not separate the city factor into three factors containing just the city, just the region, and just the country of each original city entry.
+
+First, I use the `gregexpr` function to calculate all the character indices for each city entry of the first comma, and the indices for the second comma. The `first.comma` vector has the character index for each city entry's first comma. The `second.comma` vector has the character index for each city entry's second comma. Because `gregexpr` returns both of these pieces of information in a complicated structure, it was necessary to use the `lapply` function to extract the first comma indices as the first element of the first list in each entry of the list of lists it produced, and to use the `lapply` function to extract the second comma indices as the second element of the first list in each entry of the list of lists it produced. You can see how this got a bit confusing, and it was difficult to get to work perfectly.
+
+```{r}
+# Take indices of comma entries in the list of strings
+first.comma = unlist(lapply(gregexpr(pattern=',',simple.city.sample$city), `[[`, 1))
+second.comma = unlist(lapply(gregexpr(pattern=',',simple.city.sample$city), `[[`, 2))
+```
+
+Lets see how this looks, by comparing the city entries to these comma indices and seeing if they look correct.
+
+```{r}
+# Confirm column indices are correct
+cbind(simple.city.sample$city,first.comma,second.comma)
+```
+
+While tedious, you can indeed check that the comma indices are indeed the character count in the corresponding city entry before you get to the comma in question. Now, we can use the `substr` function in R to take correct substrings of the city entry for the new variables we want to define! We can do this inside of a `mutate` function.
+
+```{r}
+# Take substrings in mutate function
+simple.city.sample = simple.city.sample %>%
+  mutate(region=substr(city,first.comma+2,second.comma-1),
+         country=substr(city,second.comma+2,nchar(city)),
+         city=substr(city,1,first.comma-1))
+```
+
+Let us call to the columns that we now have to see how they look!
+
+```{r}
+# Take just the new location columns
+simple.city.sample[,c(9,10,11)]
+```
+
+And it looks like we have adequately separated the location information!
+
+We can now see how the data are organized.
+
+```{r}
+simple.city.sample %>%
+  unclass() %>%
+  as.data.frame() %>%
+  str()
+```
+
+And finally it appears we have done our job and have completed all the tasks we set out to with the data set.

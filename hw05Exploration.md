@@ -23,7 +23,7 @@ Submitted for 2018-10-19
 
 
 
-In this document we present some data exploration completed using the `singer` dataset accessed from GitHub. We will use the packages `tidyverse`, `devtools`, `RColorBrewer`, and `ggplot2` from R, as well as `singer` from GitHub.
+In this document we present some data exploration completed using the `singer` dataset accessed from GitHub. We will use the packages `tidyverse`, `devtools`, `RColorBrewer`, `plotly`, `svglite`, and `ggplot2` from R, as well as `singer` from GitHub.
 
 ``` r
 library(tidyverse)
@@ -32,6 +32,9 @@ library(devtools)
 devtools::install_github("JoeyBernhardt/singer")
 library(singer)
 library(RColorBrewer)
+library(plotly)
+library(svglite)
+library(stringr)
 ```
 
 The sections of this document are as follows:
@@ -45,6 +48,7 @@ The sections of this document are as follows:
 -   Creating a New Visualization
 -   Converting Visualization to Plotly
 -   Writing Figures to File
+-   Bonus, Separating Locations in the City Column
 
 Loading in Data and Checking its Structure
 ==========================================
@@ -227,6 +231,7 @@ We see that rearranging the data does change its order.
 Now let us create a simple plot of artist popularity for the 50 selected songs, and we colour by year of song's release.
 
 ``` r
+# Plot before rearrangement
 ggplot(singer_locations_sample,aes(y=artist_name,x=artist_hotttnesss,colour=year))+
   geom_point()+
   scale_colour_distiller(palette = 'YlOrRd')+
@@ -239,6 +244,7 @@ ggplot(singer_locations_sample,aes(y=artist_name,x=artist_hotttnesss,colour=year
 Now, let us verify that the plot will be the exact same if we rearrange the data before making the plot. Let us arrange `artist_id` in alphabetical order, and remake the plot.
 
 ``` r
+# Plot after rearrangement
 singer_locations_sample %>%
   arrange(artist_name) %>%
   ggplot(aes(y=artist_name,x=artist_hotttnesss,colour=year))+
@@ -258,6 +264,7 @@ Reordering the Levels of `artist_name` Based on `artist_hotttnesss` in the Full 
 We will reorder the levels of `artist_name` by the minimum hotness level observed by all songs by the artist.
 
 ``` r
+# Rearrange factor levels
 singer_locations_filtered$artist_name = singer_locations_filtered$artist_name %>%
   fct_reorder(singer_locations_filtered$artist_hotttnesss,min)
 ```
@@ -265,6 +272,7 @@ singer_locations_filtered$artist_name = singer_locations_filtered$artist_name %>
 And now if we examine the first 8 levels in the factor, alongside the first 8 levels in the factor in the original data set,
 
 ``` r
+# Compare first few factor levels
 data.frame(new=levels(singer_locations_filtered$artist_id)[c(1,2,3,4,5,6,7,8)],original=levels(singer_locations$artist_id)[c(1,2,3,4,5,6,7,8)])
 ```
 
@@ -286,6 +294,7 @@ Exploring the Effects of Reordering the Levels of `artist_id` on the Creation of
 Let us make the same figure as previously, using the same subset of the data, but this time taking the subset from the data with the reordered factor.
 
 ``` r
+# Start arranging data to create same plot as before
 singer_locations_sample2 = singer_locations_filtered %>%
   filter(artist_name %in% sample.artists) %>%
   select(artist_hotttnesss,artist_name,year) %>%
@@ -302,6 +311,7 @@ str(singer_locations_sample2)
 We see the same data structure as before, as expected. Now, let us create the same plot as we did before.
 
 ``` r
+# Examine same plot as before but with reordered factor levels
 ggplot(singer_locations_sample2,aes(y=artist_name,x=artist_hotttnesss,colour=year))+
   geom_point()+
   scale_colour_distiller(palette = 'YlOrRd')+
@@ -319,6 +329,7 @@ Experimenting With File Writing and Reading
 Right now we have two data sets that are samples from the filtered `singer_locations` object `singer_locations_filtered`. The two sample data sets are called `singer_locations_sample` and `singer_locations_sample2`. Reviewing the structure of these, we have
 
 ``` r
+# See that only factor level order differs
 str(singer_locations_sample)
 ```
 
@@ -341,6 +352,7 @@ What has happened is we have two identical subsets of the filtered data set, but
 We can see that the data sets are technically not 'identical' because of these different factor orders, even though they technically hold the exact same information in the same dimension and with the same column contents. Indeed, this can be checked in R
 
 ``` r
+# Check that these data sets are considered different
 identical(singer_locations_sample,singer_locations_sample2)
 ```
 
@@ -349,6 +361,7 @@ identical(singer_locations_sample,singer_locations_sample2)
 Now, this will be useful when exploring writing and reading files, because we can see whether these objects become identical after writing and reading them using different methods. For example, let us write both of these data sets into CSV files, then read them back into R, and then check if R now sees them as identical.
 
 ``` r
+# Write to csv and read back, check if they are still different
 write.csv(singer_locations_sample,'sample1.csv',row.names=FALSE)
 write.csv(singer_locations_sample2,'sample2.csv',row.names=FALSE)
 
@@ -378,6 +391,7 @@ We see from comparing the first few levels that they are purely alphabetical.
 Let us try this with the `saveRDS` and `readRDS` functions instead.
 
 ``` r
+# Write to RDS and read back, check if they are still different
 saveRDS(singer_locations_sample,'RDS1')
 saveRDS(singer_locations_sample2,'RDS2')
 
@@ -407,6 +421,7 @@ Where we see that the reordering of the factor levels was mantained in the secon
 Lastly, let us do this comparison with `dput` and `dget`
 
 ``` r
+# Write and read back using dput and dget, check if they are still different
 dput(singer_locations_sample,'dput1')
 dput(singer_locations_sample2,'dput2')
 
@@ -443,6 +458,7 @@ Because there were so many data points, and so many of the variables were factor
 For my initial plots, I decide to try two things. I plot all the points to see if there needs to be changes before interpretation, which is likely.
 
 ``` r
+# Create simplest plot to start with
 singer_locations_filtered %>%
   ggplot(aes(x=year,y=artist_hotttnesss))+
   geom_point()
@@ -467,17 +483,20 @@ Some steps that I took to consolidate all this information into a more useful pl
 -   Make contour lines black to contrast the light palette of the points.
 
 ``` r
-singer_locations_filtered %>%
+# Recreate last plot with all described changes
+plot=singer_locations_filtered %>%
   ggplot(aes(x=year,y=artist_hotttnesss))+
   geom_jitter(aes(colour=title,group=artist_name),size=0.75,width=0.4,height=0,alpha=0.5)+
+  guides(colour=FALSE)+
   stat_density_2d(colour='black',bins=9)+
   scale_colour_manual(values=colorRampPalette(brewer.pal(8, 'Set1'))(length(unique(singer_locations_filtered$title))))+
-  guides(colour=FALSE)+
   labs(y="Artist Hotness",x="Year")+
   ggtitle('Artist Hotness Ratings vs. Time of Song Release')+
   scale_x_continuous(breaks=seq(1922,2010,by=2))+
   theme_bw()+
   theme(axis.text.x = element_text(angle = 90, hjust = 1,vjust=0.5))
+
+plot
 ```
 
 ![](hw05Exploration_files/figure-markdown_github/unnamed-chunk-26-1.png)
@@ -489,5 +508,403 @@ It was interesting to learn a lot of the things that I ended up applying to this
 Converting Visualization to Plotly
 ==================================
 
+``` r
+attach(singer_locations_filtered)
+
+# Declare some information to be used in axes formatting
+f <- list(
+  family = "Courier New, monospace",
+  size = 18,
+  color = "black"
+)
+x <- list(
+  title = "Year (With Jitter)",
+  titlefont = f,
+  autotick = FALSE,
+  dtick=2
+)
+y <- list(
+  title = "Artist Hotness",
+  titlefont = f
+)
+
+# Create plotly plot by adding scatter plot on top of contour
+p = plot_ly(x = year, 
+        y = artist_hotttnesss,
+        text = ~paste('Song: ', title,'. Artist: ',artist_name)) %>% 
+  add_histogram2dcontour(showscale=FALSE,
+                         ncontours=10,
+                         colorscale='black',
+                         contours = list(coloring='none')) %>%
+  add_markers(x = year+runif(length(year),-0.5,0.5),
+              y = artist_hotttnesss,
+              marker=list(size=2.5),
+              opacity=0.5,
+              color=I("orangered3")) %>%
+  layout(xaxis = x, 
+         yaxis = y,
+         showlegend=FALSE)
+
+htmlwidgets::saveWidget(p, file = "plotly_plot.html")
+```
+
+This plot can be found [here](https://stat545-ubc-students.github.io/hw05-ericjsanders/plotly_plot.html)!
+
+The plot is very interesting because it captures the same infomation as previously, as well as additional information, and it has additional capabilities for interaction! There are no longer different colours for different artists, but when a song is moused over, the song title and artist name are given, which is more useful than previous. Furthermore, the zooming capabilities of a plotly figure are always incredibly useful. As an example of something we can tell form this plot but not the previous one. As an example of something that you can see in the second plot but not the first plot, if you mouse over the highest score song in 2009, you can see it is "Boom Boom Pow" by the "Black Eyed Peas", an excellent song.
+
 Writing Figures to File
 =======================
+
+We will be working with the final ggplot graph shown previously, which was saved into the object `plot`.
+
+I will save the plot object three different ways, and then embed the three plots in the same order to observe how the image files differ.
+
+``` r
+ggsave('gg1.png',plot=plot,device=png())
+ggsave('gg2.png',plot=plot,device=png(),dpi=72)
+ggsave('gg3.png',plot=plot,device=png(),width=5,height=5,units='cm')
+ggsave('gg4.png',plot=plot,device=png(),scale=0.5)
+```
+
+Now we can call to them in order.
+
+First, the plot with no special arguments.
+
+![](gg1.png)
+
+Second, the plot with a `dpi` argument.
+
+![](gg2.png)
+
+Third, the plot with changed width and height parameters.
+
+![](gg3.png)
+
+Fourth, the plot with a `scale` argument.
+
+![](gg4.png)
+
+We see that in all of the above plots, the dpi argument preserved the proportional size of text in axis labels and the size of points in the plot. In comparison, the width and height arguments or the scale argument do not preserve the proportional size of text and points.
+
+Now that we have played with the arguments of the `ggsave`, we can play with the different graphic devices.
+
+``` r
+ggsave('gg5.jpeg',plot=plot,device='jpeg')
+ggsave('gg6.pdf',plot=plot,device='pdf')
+ggsave('gg7.svg',plot=plot,device='svg')
+```
+
+Now let us attempt to look at these figures.
+
+First, the .jpeg file. JPEG's are examples of rasterized images.
+
+![](gg5.jpeg)
+
+Second, the .pdf file. PDF's are examples of rasterized images.
+
+![](gg6.pdf)
+
+Third, the .svg file. SVG's are examples of vectorized images.
+
+![](gg7.svg)
+
+PDF's aren't usually created in order to be inserted into other documents, so we can see that R Markdown presented it less nicely.
+
+Rasterization vs. vectorization of images generally becomes most relevant when resizing or changing images, so we see in this case little difference between the saved and loaded rasterized and vectorized images that weren't resized.
+
+The biggest case I know of in which we might want to use `ggsave()` and then present an image manually in a markdown document is when presenting results of very complicated R code that takes a great deal of time to run. For example, in simulation studies or complex Bayesian modelling, code often has to run for a great deal of time and look at many different situations while generating and collecting data. In these cases, one would hopefully run their code with an internal request to save plots of interest, and later when a presentation of results is put together, the images can be called to and presented, and thus the rendering of the presentation file does not always require an incredibly long time for code to run.
+
+Bonus, Separating Locations in the City Column
+==============================================
+
+First, I will generate a list of the factor levels of the `city` column that contain two commas, so I can select some levels that have clear entries separating city, region, and country. This can be done using the `stringr` package, which has a useful function called `str_count` that counts the number of occurences of a certain pattern in each element of a vector of strings.
+
+``` r
+# Look at unique cities
+unique.locs = unique(singer_locations_filtered$city)
+# Pick out unique cities with 2 commas in entry
+unique.locs[which(str_count(unique.locs,',')==2)]
+```
+
+    ##   [1] Poggio Bustone, Rieti, Italy                         
+    ##   [2] Sheffield, Yorkshire, England                        
+    ##   [3] Arima, St. George, Trinidad                          
+    ##   [4] Bergen County, New Jersey, USA                       
+    ##   [5] Eel Pie Island, Twickenham, Engla                    
+    ##   [6] Stourbridge, West Midlands, Engla                    
+    ##   [7] Egremont, Cumbria, England                           
+    ##   [8] Sevenoaks, Kent, England                             
+    ##   [9] Saskatoon, Saskatchewan, Canada                      
+    ##  [10] Lewes, East Sussex, England                          
+    ##  [11] Newton-le-Willows, Merseyside, England               
+    ##  [12] Bayshore, Long Island, NY                            
+    ##  [13] Toronto, Ontario, Canada                             
+    ##  [14] Dolores Hidalgo, Guanajuato, Mexi                    
+    ##  [15] Wallington, Surrey, England                          
+    ##  [16] Harlem, New York, NY                                 
+    ##  [17] Salvador, Bahia, Brazil                              
+    ##  [18] Gweedore, Donegal, Ireland                           
+    ##  [19] Chelmsford, Essex, England                           
+    ##  [20] Wangaratta, Victoria, Australia                      
+    ##  [21] Saltspring, British Columbia, Can                    
+    ##  [22] Baimorto, La Coruna, Spain                           
+    ##  [23] Victoria, British Columbia, Canad                    
+    ##  [24] Guelph, Ontario, Canada                              
+    ##  [25] Victoria, BC, Canada                                 
+    ##  [26] Hanna, Alberta, Canada                               
+    ##  [27] Modugno, BA, IT                                      
+    ##  [28] Vancouver, British Columbia, Cana                    
+    ##  [29] Vancouver, B.C., Canada                              
+    ##  [30] Verdun, Quebec, Canada                               
+    ##  [31] Dollis Hill, London, England                         
+    ##  [32] Upminster, Essex, England                            
+    ##  [33] Edmonton, Alberta, Canada                            
+    ##  [34] Wigan, Lancashire, England                           
+    ##  [35] Shrewsbury, Shropshire, England                      
+    ##  [36] Exeter, Devon, England                               
+    ##  [37] Montreal, Quebec, Canada                             
+    ##  [38] Hampstead, London, England                           
+    ##  [39] Hamilton, Ontario, Canada                            
+    ##  [40] Macclesfield, Cheshire, England                      
+    ##  [41] Brandon, Manitoba, Canada                            
+    ##  [42] Ramsey, Fayette County, IL                           
+    ##  [43] Halifax, Nova Scotia, Canada                         
+    ##  [44] New Westminster, British Columbia, Canada            
+    ##  [45] Kingston, Ontario, Canada                            
+    ##  [46] Liverpool, England, UK                               
+    ##  [47] Newcastle, Yorkshire, England                        
+    ##  [48] Lynn Lake, Manitoba, Canada                          
+    ##  [49] Wadsworth, London, England                           
+    ##  [50] Kings Cross, London, England                         
+    ##  [51] Acton, London, England                               
+    ##  [52] Vancouver, BC and Montreal, QC                       
+    ##  [53] Erfurt, Thuringia, Germany                           
+    ##  [54] Bournemouth, Dorset, England                         
+    ##  [55] Basildon, Essex, England                             
+    ##  [56] Tiger Bay, Cardiff, Wales                            
+    ##  [57] Lancaster, Lancashire, England                       
+    ##  [58] Coney Island, Brooklyn, NY                           
+    ##  [59] Donaghmede, Dublin, Ireland                          
+    ##  [60] Hatfield, Hertfordshire, England                     
+    ##  [61] Hadley, Massachusetts, US                            
+    ##  [62] born 19 July 1976 (age 33) in Täby, Stockholm, Sweden
+    ##  [63] Calgary, Alberta, Canada                             
+    ##  [64] New York City, New York, United States               
+    ##  [65] Littlehampton, West Sussex, Engla                    
+    ##  [66] Los Angeles, California, USA                         
+    ##  [67] Hammersmith, London, England                         
+    ##  [68] Etats-Unis, Illinois, Evanston                       
+    ##  [69] Northwich, Cheshire, England                         
+    ##  [70] Southgate, Middlesex, England                        
+    ##  [71] New York, NY, United States                          
+    ##  [72] Fyzabad, Trinidad, West Indies                       
+    ##  [73] London, Ontario, Canada                              
+    ##  [74] Bristol, Somerset, England                           
+    ##  [75] Manchester, Lancashire, England                      
+    ##  [76] Noisy-le-Sec, Paris, France                          
+    ##  [77] Salford, Greater Manchester, Engl                    
+    ##  [78] Grande-Prairie, Alberta, Canada                      
+    ##  [79] Bolton, Ontario, Canada                              
+    ##  [80] Kentwood, LA; Los Angeles, CA                        
+    ##  [81] Detroit, Michigan, USA                               
+    ##  [82] Millbrook, Ontario, Canada                           
+    ##  [83] Galloway, Panola County, TX                          
+    ##  [84] Salvador, Bahia, Brasil                              
+    ##  [85] Lewisham, London, England                            
+    ##  [86] Winnipeg, Manitoba, Canada                           
+    ##  [87] Battle, Sussex, England                              
+    ##  [88] Sydney, New South Wales, Australi                    
+    ##  [89] Chiswick, Greater London, England                    
+    ##  [90] Montreal, QC, Canada                                 
+    ##  [91] Staines, Middlesex, England                          
+    ##  [92] Cardiff, Wales and Los Angeles, California           
+    ##  [93] 732, NEW JERSEY, USA                                 
+    ##  [94] Blackpool, Lancashire, England                       
+    ##  [95] Chichester, Sussex, England                          
+    ##  [96] Spring Hill, Nova Scotia, Canada                     
+    ##  [97] Ventura, California, USA                             
+    ##  [98] Barking, Essex, England                              
+    ##  [99] Bow (E3), London, UK                                 
+    ## [100] Belleville, Ontario, Canada                          
+    ## [101] Croydon, Surrey, England                             
+    ## [102] Poughkeepsie, New York / Pompano Beach, Florida      
+    ## [103] Whitestone, Queens, NY                               
+    ## [104] Olympia, Washington, United States                   
+    ## [105] Goldsmith's College, Lewisham, Lo                    
+    ## [106] Tampa Bay, Florida, United States                    
+    ## [107] Chelsea, London, England                             
+    ## [108] Ottawa, Ontario, Canada                              
+    ## [109] Rossville, Tennessee (Lived in Como, Mississippi)    
+    ## [110] Leed, West Yorkshire, England                        
+    ## [111] Owestry, Shropshire, England                         
+    ## 1308 Levels: ?, Illinois 020 27 310, Louisiana ... �tersund, Sweden
+
+I manually look at this list of levels, and manually select some that are properly formatted for the desired manipulation.
+
+``` r
+chosen.locs = unique.locs[which(str_count(unique.locs,',')==2)][c(1,2,3,4,7,8,9,18,20,22,44,48)]
+
+# Filter data to only contain these city entries
+
+simple.city.sample = singer_locations_filtered %>%
+  filter(city %in% chosen.locs) %>%
+  droplevels() %>%
+  mutate(city = as.character(city))
+
+str(simple.city.sample)
+```
+
+    ## 'data.frame':    40 obs. of  9 variables:
+    ##  $ track_id         : Factor w/ 40 levels "TRAZRBR128E0782989",..: 36 35 15 23 13 16 29 26 5 30 ...
+    ##  $ title            : Factor w/ 39 levels "(Keep Feeling) Fascination (Improvisation)",..: 11 33 34 38 6 12 13 19 35 4 ...
+    ##  $ song_id          : Factor w/ 40 levels "SOBHCLR12AB0186942",..: 7 10 3 8 40 9 34 27 14 32 ...
+    ##  $ release          : Factor w/ 35 levels "All Boro Kings",..: 11 31 12 1 16 6 7 24 23 25 ...
+    ##  $ artist_id        : Factor w/ 20 levels "AR049S81187B9AE8A5",..: 2 17 11 5 19 3 7 15 1 8 ...
+    ##  $ artist_name      : Factor w/ 21 levels "Bruford","The Dylans",..: 19 20 3 12 7 10 1 5 14 21 ...
+    ##  $ year             : int  1980 2008 2002 1994 1999 1994 1978 1988 1979 1991 ...
+    ##  $ artist_hotttnesss: num  0.512 0.551 0.338 0.445 0.373 ...
+    ##  $ city             : chr  "Poggio Bustone, Rieti, Italy" "Sheffield, Yorkshire, England" "Arima, St. George, Trinidad" "Bergen County, New Jersey, USA" ...
+
+So we have this small subset of the data, and we wish to not separate the city factor into three factors containing just the city, just the region, and just the country of each original city entry.
+
+First, I use the `gregexpr` function to calculate all the character indices for each city entry of the first comma, and the indices for the second comma. The `first.comma` vector has the character index for each city entry's first comma. The `second.comma` vector has the character index for each city entry's second comma. Because `gregexpr` returns both of these pieces of information in a complicated structure, it was necessary to use the `lapply` function to extract the first comma indices as the first element of the first list in each entry of the list of lists it produced, and to use the `lapply` function to extract the second comma indices as the second element of the first list in each entry of the list of lists it produced. You can see how this got a bit confusing, and it was difficult to get to work perfectly.
+
+``` r
+# Take indices of comma entries in the list of strings
+first.comma = unlist(lapply(gregexpr(pattern=',',simple.city.sample$city), `[[`, 1))
+second.comma = unlist(lapply(gregexpr(pattern=',',simple.city.sample$city), `[[`, 2))
+```
+
+Lets see how this looks, by comparing the city entries to these comma indices and seeing if they look correct.
+
+``` r
+# Confirm column indices are correct
+cbind(simple.city.sample$city,first.comma,second.comma)
+```
+
+    ##                                                   first.comma second.comma
+    ##  [1,] "Poggio Bustone, Rieti, Italy"              "15"        "22"        
+    ##  [2,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ##  [3,] "Arima, St. George, Trinidad"               "6"         "18"        
+    ##  [4,] "Bergen County, New Jersey, USA"            "14"        "26"        
+    ##  [5,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ##  [6,] "Egremont, Cumbria, England"                "9"         "18"        
+    ##  [7,] "Sevenoaks, Kent, England"                  "10"        "16"        
+    ##  [8,] "Saskatoon, Saskatchewan, Canada"           "10"        "24"        
+    ##  [9,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [10,] "Gweedore, Donegal, Ireland"                "9"         "18"        
+    ## [11,] "Wangaratta, Victoria, Australia"           "11"        "21"        
+    ## [12,] "Baimorto, La Coruna, Spain"                "9"         "20"        
+    ## [13,] "Egremont, Cumbria, England"                "9"         "18"        
+    ## [14,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [15,] "Baimorto, La Coruna, Spain"                "9"         "20"        
+    ## [16,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [17,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [18,] "New Westminster, British Columbia, Canada" "16"        "34"        
+    ## [19,] "Lynn Lake, Manitoba, Canada"               "10"        "20"        
+    ## [20,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [21,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [22,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [23,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [24,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [25,] "Egremont, Cumbria, England"                "9"         "18"        
+    ## [26,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [27,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [28,] "Wangaratta, Victoria, Australia"           "11"        "21"        
+    ## [29,] "Saskatoon, Saskatchewan, Canada"           "10"        "24"        
+    ## [30,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [31,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [32,] "Poggio Bustone, Rieti, Italy"              "15"        "22"        
+    ## [33,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [34,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [35,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [36,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [37,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [38,] "Sheffield, Yorkshire, England"             "10"        "21"        
+    ## [39,] "Wangaratta, Victoria, Australia"           "11"        "21"        
+    ## [40,] "Sheffield, Yorkshire, England"             "10"        "21"
+
+While tedious, you can indeed check that the comma indices are indeed the character count in the corresponding city entry before you get to the comma in question. Now, we can use the `substr` function in R to take correct substrings of the city entry for the new variables we want to define! We can do this inside of a `mutate` function.
+
+``` r
+# Take substrings in mutate function
+simple.city.sample = simple.city.sample %>%
+  mutate(region=substr(city,first.comma+2,second.comma-1),
+         country=substr(city,second.comma+2,nchar(city)),
+         city=substr(city,1,first.comma-1))
+```
+
+Let us call to the columns that we now have to see how they look!
+
+``` r
+# Take just the new location columns
+simple.city.sample[,c(9,10,11)]
+```
+
+    ##               city           region   country
+    ## 1   Poggio Bustone            Rieti     Italy
+    ## 2        Sheffield        Yorkshire   England
+    ## 3            Arima       St. George  Trinidad
+    ## 4    Bergen County       New Jersey       USA
+    ## 5        Sheffield        Yorkshire   England
+    ## 6         Egremont          Cumbria   England
+    ## 7        Sevenoaks             Kent   England
+    ## 8        Saskatoon     Saskatchewan    Canada
+    ## 9        Sheffield        Yorkshire   England
+    ## 10        Gweedore          Donegal   Ireland
+    ## 11      Wangaratta         Victoria Australia
+    ## 12        Baimorto        La Coruna     Spain
+    ## 13        Egremont          Cumbria   England
+    ## 14       Sheffield        Yorkshire   England
+    ## 15        Baimorto        La Coruna     Spain
+    ## 16       Sheffield        Yorkshire   England
+    ## 17       Sheffield        Yorkshire   England
+    ## 18 New Westminster British Columbia    Canada
+    ## 19       Lynn Lake         Manitoba    Canada
+    ## 20       Sheffield        Yorkshire   England
+    ## 21       Sheffield        Yorkshire   England
+    ## 22       Sheffield        Yorkshire   England
+    ## 23       Sheffield        Yorkshire   England
+    ## 24       Sheffield        Yorkshire   England
+    ## 25        Egremont          Cumbria   England
+    ## 26       Sheffield        Yorkshire   England
+    ## 27       Sheffield        Yorkshire   England
+    ## 28      Wangaratta         Victoria Australia
+    ## 29       Saskatoon     Saskatchewan    Canada
+    ## 30       Sheffield        Yorkshire   England
+    ## 31       Sheffield        Yorkshire   England
+    ## 32  Poggio Bustone            Rieti     Italy
+    ## 33       Sheffield        Yorkshire   England
+    ## 34       Sheffield        Yorkshire   England
+    ## 35       Sheffield        Yorkshire   England
+    ## 36       Sheffield        Yorkshire   England
+    ## 37       Sheffield        Yorkshire   England
+    ## 38       Sheffield        Yorkshire   England
+    ## 39      Wangaratta         Victoria Australia
+    ## 40       Sheffield        Yorkshire   England
+
+And it looks like we have adequately separated the location information!
+
+We can now see how the data are organized.
+
+``` r
+simple.city.sample %>%
+  unclass() %>%
+  as.data.frame() %>%
+  str()
+```
+
+    ## 'data.frame':    40 obs. of  11 variables:
+    ##  $ track_id         : Factor w/ 40 levels "TRAZRBR128E0782989",..: 36 35 15 23 13 16 29 26 5 30 ...
+    ##  $ title            : Factor w/ 39 levels "(Keep Feeling) Fascination (Improvisation)",..: 11 33 34 38 6 12 13 19 35 4 ...
+    ##  $ song_id          : Factor w/ 40 levels "SOBHCLR12AB0186942",..: 7 10 3 8 40 9 34 27 14 32 ...
+    ##  $ release          : Factor w/ 35 levels "All Boro Kings",..: 11 31 12 1 16 6 7 24 23 25 ...
+    ##  $ artist_id        : Factor w/ 20 levels "AR049S81187B9AE8A5",..: 2 17 11 5 19 3 7 15 1 8 ...
+    ##  $ artist_name      : Factor w/ 21 levels "Bruford","The Dylans",..: 19 20 3 12 7 10 1 5 14 21 ...
+    ##  $ year             : int  1980 2008 2002 1994 1999 1994 1978 1988 1979 1991 ...
+    ##  $ artist_hotttnesss: num  0.512 0.551 0.338 0.445 0.373 ...
+    ##  $ city             : Factor w/ 12 levels "Arima","Baimorto",..: 8 11 1 3 11 4 10 9 11 5 ...
+    ##  $ region           : Factor w/ 12 levels "British Columbia",..: 8 12 10 7 12 2 4 9 12 3 ...
+    ##  $ country          : Factor w/ 8 levels "Australia","Canada",..: 5 3 7 8 3 3 3 2 3 4 ...
+
+And finally it appears we have done our job and have completed all the tasks we set out to with the data set.
